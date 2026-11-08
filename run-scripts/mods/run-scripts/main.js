@@ -3,9 +3,9 @@
 // it, has a package.json with scripts, and nothing otherwise. ▶ runs the chosen script in a
 // new terminal tab beside the shown one; ▾ opens this mod as a popup listing every script.
 import { View, div, svg } from "gpui-kit";
-import { v_flex, h_flex } from "gpui-base";
+import { v_flex, h_flex, InputState, Input } from "gpui-base";
 import { spaces, panes, focused, theme, layout, props, closeOverlay, exec, notify, window } from "herdr";
-import { MOD, findProject, control, selectedScript, recentScripts, select, runScript, commandFor } from "./scripts.js";
+import { MOD, findProject, control, selectedScript, recentScripts, select, runScript, commandFor, filterScripts } from "./scripts.js";
 
 const ICON = (name) => `mods/${MOD}/${name}.svg`;
 
@@ -37,7 +37,18 @@ function frameRadius() {
 export default class RunScripts extends View {
   init(_props, cx) {
     this.popup = props()?.popup ?? null;
-    if (this.popup) return;
+    if (this.popup) {
+      // The list is a search box over the project's scripts: typing filters, Enter runs the
+      // highlighted one, Up/Down move the highlight, Esc closes. Mouse use is unchanged.
+      this.query = "";
+      this.sel = 0;
+      this.input = InputState.new({ placeholder: "Filter scripts…" });
+      this.input.on("change", (_e, cx) => { this.query = this.input.value(); this.sel = 0; cx.notify(); });
+      this.input.on("submit", (_e, cx) => this.runAt(cx));
+      this.handle = cx.focus_handle();
+      cx.timer.after(80, () => { this.input.focus(); cx.notify(); });
+      return;
+    }
     this.project = null;
     cx.timer.every(15000, (cx) => this.detect(cx, true));
   }
@@ -54,12 +65,39 @@ export default class RunScripts extends View {
     });
   }
 
+  // The scripts matching what is typed (all of them while the box is empty).
+  matches() {
+    return filterScripts(this.popup.project.scripts, this.query);
+  }
+
+  recentMatches() {
+    const p = this.popup.project;
+    return filterScripts(recentScripts(p).map((n) => p.scripts.find((s) => s.name === n)).filter(Boolean), this.query);
+  }
+
+  // Enter: the highlighted script (the best match when none is highlighted).
+  runAt(cx) {
+    const list = this.matches(), s = list[Math.min(this.sel, Math.max(0, list.length - 1))];
+    if (!s) return;
+    closeOverlay(props().overlay);
+    runScript(this.popup.project, s.name, cx);
+  }
+
+  key(e, cx) {
+    if (e.key === "escape") { closeOverlay(props().overlay); cx.stop_propagation(); return; }
+    const list = this.matches();
+    if (!list.length) return;
+    if (e.key === "down") { this.sel = (this.sel + 1) % list.length; cx.notify(); cx.stop_propagation(); }
+    else if (e.key === "up") { this.sel = (this.sel + list.length - 1) % list.length; cx.notify(); cx.stop_propagation(); }
+  }
+
   renderPopup() {
     const t = theme(), R = frameRadius(), p = this.popup.project, close = () => closeOverlay(props().overlay);
-    const chosen = selectedScript(p).name, recent = recentScripts(p);
+    const chosen = selectedScript(p).name, all = this.matches(), recent = this.recentMatches();
+    const rows = all.length + recent.length;
     const caption = (text) => div().px(10).pt(8).pb(3).text_size(10.5).font_semibold().text_color(t.dim).child(text);
-    const row = (s, key) => h_flex().id(`rs-${key}-${s.name}`).h(30).flex_none().pl(10).pr(4).gap(8).items_center().rounded(R).cursor_pointer()
-      .when(s.name === chosen, (el) => el.bg(t.selected)).when(s.name !== chosen, (el) => el.hover((st) => st.bg(t.hover)))
+    const row = (s, key, active) => h_flex().id(`rs-${key}-${s.name}`).h(30).flex_none().pl(10).pr(4).gap(8).items_center().rounded(R).cursor_pointer()
+      .when(active || s.name === chosen, (el) => el.bg(t.selected)).when(!active && s.name !== chosen, (el) => el.hover((st) => st.bg(t.hover)))
       .on_click(() => { select(p, s.name); close(); })
       .child(div().flex_none().max_w(130).truncate().text_size(12.5).text_color(t.foreground).child(s.name))
       .child(div().flex_1().min_w(0).truncate().text_size(11).text_color(t.dim).child(s.cmd))
@@ -70,15 +108,18 @@ export default class RunScripts extends View {
         .hover((st) => st.bg(t.raised)).on_click((_e, cx) => { cx.stop_propagation(); close(); runScript(p, s.name, cx, "split"); })
         .child(svg(ICON("columns-2")).size(13).text_color(t.dim)));
     return v_flex().id("rs-menu").size_full().p(5).bg(t.popover ?? t.surface).text_color(t.foreground)
+      .track_focus(this.handle).on_key_down((e, cx) => this.key(e, cx))
       .child(h_flex().px(10).pt(4).pb(2).gap(6).items_center()
         .child(div().flex_1().min_w(0).truncate().text_size(12).font_medium().child(p.name))
         .child(div().flex_none().text_size(11).text_color(t.dim).child(commandFor(p.pm, "…").slice(0, -1).join(" "))))
+      .child(div().px(6).pb(4)
+        .child(Input.new(this.input).h(30).px(8).rounded(R).border_1().border_color(t.input).bg(t.background).text_size(12.5).text_color(t.foreground)))
       // The popup sizes to its content, so the list states its own height (a flex_1 list
-      // would get none); it scrolls past 12 rows.
-      .child(v_flex().id("rs-scroll").flex_none().h(Math.min(360, (recent.length + p.scripts.length) * 30 + (recent.length ? 2 : 1) * 25)).overflow_y_scrollbar()
-        .when(recent.length > 0, (el) => el.child(caption("RECENT")).children(recent.map((n) => row(p.scripts.find((s) => s.name === n), "recent"))))
-        .child(caption("ALL SCRIPTS"))
-        .children(p.scripts.map((s) => row(s, "all"))))
+      // would get none); it scrolls past a dozen rows.
+      .child(v_flex().id("rs-scroll").flex_none().h(Math.min(330, rows * 30 + (recent.length ? 2 : 1) * 25)).overflow_y_scrollbar()
+        .when(recent.length > 0, (el) => el.child(caption("RECENT")).children(recent.map((s, i) => row(s, "recent", i === this.sel))))
+        .when(recent.length === 0 && all.length === 0, (el) => el.child(div().px(10).py(12).text_size(12).text_color(t.dim).child("No script matches")))
+        .when(all.length > 0, (el) => el.child(caption("ALL SCRIPTS")).children(all.map((s, i) => row(s, "all", recent.length + i === this.sel)))))
       .child(div().h(1).mx(6).my(4).flex_none().bg(t.border))
       .child(h_flex().id("rs-edit").h(28).flex_none().px(10).gap(8).items_center().rounded(R).cursor_pointer().text_size(12.5).hover((st) => st.bg(t.hover))
         .on_click(() => { close(); openFile(`${p.root}/package.json`, p.on); })

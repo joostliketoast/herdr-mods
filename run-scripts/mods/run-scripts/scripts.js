@@ -75,6 +75,35 @@ export function runScript(project, name, cx, where = "tab") {
   });
 }
 
+// ── the popup's search box ────────────────────────────────────────────────────────────
+// Subsequence match, biased toward what people type: a contiguous run scores higher, a
+// match that starts a word (after ":" "-" "_" or ".") higher still, and a shorter script
+// name wins a tie. Returns a score, or -Infinity when the query is not a subsequence.
+export function fuzzyScore(query, text) {
+  const q = String(query).toLowerCase(), s = String(text).toLowerCase();
+  if (!q) return 0;
+  let qi = 0, score = 0, run = 0;
+  for (let i = 0; i < s.length && qi < q.length; i++) {
+    if (s[i] !== q[qi]) { run = 0; continue; }
+    const wordStart = i === 0 || ":-_.".includes(s[i - 1]);
+    score += 1 + (wordStart ? 4 : 0) + run * 2;
+    run++; qi++;
+  }
+  if (qi < q.length) return -Infinity;
+  return score - s.length * 0.01;
+}
+
+/** The given scripts that match `query`, best first; everything, in order, for an empty query. */
+export function filterScripts(scripts, query) {
+  const q = String(query ?? "").trim();
+  if (!q) return scripts;
+  return scripts
+    .map((s) => ({ s, score: fuzzyScore(q, s.name) }))
+    .filter((x) => x.score > -Infinity)
+    .sort((a, b) => b.score - a.score)
+    .map((x) => x.s);
+}
+
 // ── the control: [pm icon  script ▾ │ ▶] ───────────────────────────────────────────────
 const PM_COLOR = { npm: "ansi1", pnpm: "ansi3", yarn: "ansi4", bun: "foreground" };
 
