@@ -135,7 +135,7 @@ export function control(t, R, project, { height = 28, stop } = {}) {
       .child(div().min_w(0).truncate().text_color(t.foreground).child(s.name))
       .child(svg(ICON("chevron-down")).size(12).flex_none().text_color(t.dim)))
     .child(div().w(1).h(16).flex_none().bg(t.border))
-    .child(half("run-go").px(8).tooltip(`Run ${commandFor(project.pm, s.name).join(" ")} in a new tab`)
-      .on_click((_e, cx) => runScript(project, s.name, cx))
+    .child(half("run-go").px(8).tooltip(`Run ${commandFor(project.pm, s.name).join(" ")} beside this pane`)
+      .on_click((_e, cx) => runScript(project, s.name, cx, "split"))
       .child(svg(ICON("play")).size(13).text_color(t.ansi2)));
 }
