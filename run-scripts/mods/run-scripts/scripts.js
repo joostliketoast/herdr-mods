@@ -4,7 +4,7 @@
 // script in a new terminal tab beside the shown one, and draws the "▾ script  ▶" control.
 import { div, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { readTextFile, exec, spaces, focused, run, shared, setShared, home, openOverlay } from "herdr";
+import { readTextFile, exec, spaces, focused, run, shared, setShared, home, openOverlay, window } from "herdr";
 
 export const MOD = "run-scripts";
 const ICON = (name) => `mods/${MOD}/${name}.svg`;
@@ -63,7 +63,16 @@ export const commandFor = (pm, name) => (pm === "yarn" ? ["yarn", "run", name] :
 export function runScript(project, name, cx, where = "tab") {
   const argv = commandFor(project.pm, name);
   remember(project, name);
-  if (where === "split") { run("pane.split", { direction: "right", argv }); return; }
+  // A terminal closes when its program exits, so a pane running the script directly would
+  // vanish the moment a short script ends. Run it from a shell that stays, the way tab.new
+  // keeps the shell it starts an agent in; the output stays on screen, ready for the next
+  // command.
+  const one = (s) => `'${String(s).replace(/'/g, "'\\''")}'`;
+  const line = [...commandFor(project.pm, name).slice(0, -1), one(name)].join(" ");
+  const keep = window()?.platform === "windows"
+    ? ["powershell.exe", "-NoExit", "-Command", line]
+    : ["/bin/zsh", "-lic", `${line}; exec /bin/zsh -li`];
+  if (where === "split") { run("terminal.open", { place: "right", argv: keep, folder: project.root, name }); return; }
   const f = focused(), space = spaces().find((s) => s.id === f?.space) ?? spaces().find((s) => s.active);
   if (!space) return;
   const before = new Set(space.tabs.map((t) => t.id)), shown = space.tabs.find((t) => t.active);

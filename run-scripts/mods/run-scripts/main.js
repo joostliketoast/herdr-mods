@@ -41,7 +41,9 @@ export default class RunScripts extends View {
       // The list is a search box over the project's scripts: typing filters, Enter runs the
       // highlighted one, Up/Down move the highlight, Esc closes. Mouse use is unchanged.
       this.query = "";
-      this.sel = 0;
+      // The highlight starts on the script the control already shows, so Enter runs what is lit.
+      const list0 = filterScripts(this.popup.project.scripts, "");
+      this.sel = Math.max(0, list0.findIndex((s) => s.name === selectedScript(this.popup.project).name));
       this.input = InputState.new({ placeholder: "Filter scripts…" });
       this.input.on("change", (_e, cx) => { this.query = this.input.value(); this.sel = 0; cx.notify(); });
       this.input.on("submit", (_e, cx) => this.runAt(cx));
