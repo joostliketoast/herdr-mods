@@ -171,7 +171,9 @@ export default class RunScripts extends View {
     const t = theme();
     // Hug the start of the block: in a bar this puts the control next to the toolbar that
   // precedes it, instead of floating between that toolbar and the next block.
-  return h_flex().id(MOD).size_full().items_center().justify_start()
+  // The block sits in the tab bar row beside better-tabs' bar, so it always wears the bar's
+  // chrome and its 1px bottom border — even with no project, or a seam shows where it starts.
+  return h_flex().id(MOD).size_full().items_center().justify_start().bg(t.chrome).border_b(1).border_color(t.border)
       .when(Boolean(this.project), (el) => el.child(control(t, this.project, { height: 26 })));
   }
 }
