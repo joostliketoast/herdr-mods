@@ -149,17 +149,20 @@ export function openMenu(project) {
 }
 
 /** `stop` keeps a press on the control from reaching a window-drag bar under it. */
-export function control(t, R, project, { height = 28, stop } = {}) {
+export function control(t, project, { height = 26, stop } = {}) {
   const s = selectedScript(project);
-  const half = (id) => h_flex().id(id).h_full().gap(6).items_center().cursor_pointer().hover((st) => st.bg(t.hover))
+  const half = (id) => h_flex().id(id).h_full().gap(5).items_center().cursor_pointer().hover((st) => st.bg(t.hover))
     .when(Boolean(stop), (el) => el.on_mouse_down("left", stop));
-  return h_flex().id("run-scripts").h(height).flex_none().items_center().rounded(R).border_1().border_color(t.border).bg(t.background).overflow_hidden().text_size(12.5)
+  // Styled as a bar toolbar button (better-tabs' actionButton): 26 high, px 8, gap 5, radius 6,
+  // 12px text, the bar's own chrome behind it, a muted label, a 14px icon, hover on the halves,
+  // and the 1px group separator the bar uses between groups.
+  return h_flex().id("run-scripts").h(height).flex_none().items_center().rounded(6).bg(t.chrome).overflow_hidden().text_size(12)
     .child(half("run-pick").pl(8).pr(6).max_w(120).tooltip(`${project.name} · choose a script`)
       .on_click(() => openMenu(project))
-      .child(svg(`icons/${project.pm}.svg`).size(13).flex_none().text_color(t[PM_COLOR[project.pm]] ?? t.foreground))
-      .child(div().min_w(0).truncate().text_color(t.foreground).child(s.name))
+      .child(svg(`icons/${project.pm}.svg`).size(14).flex_none().text_color(t[PM_COLOR[project.pm]] ?? t.foreground))
+      .child(div().min_w(0).truncate().text_color(t.muted).child(s.name))
       .child(svg(ICON("chevron-down")).size(12).flex_none().text_color(t.dim)))
-    .child(div().w(1).h(16).flex_none().bg(t.border))
+    .child(div().w(1).h(16).mx(4).flex_none().bg(t.border))
     .child(half("run-go").px(8).tooltip(`Run ${commandFor(project.pm, s.name).join(" ")} beside this pane`)
       .on_click((_e, cx) => runScript(project, s.name, cx, "split"))
       .child(svg(ICON("play")).size(13).text_color(t.ansi2)));

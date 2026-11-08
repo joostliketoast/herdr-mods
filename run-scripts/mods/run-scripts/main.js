@@ -172,6 +172,6 @@ export default class RunScripts extends View {
     // Hug the start of the block: in a bar this puts the control next to the toolbar that
   // precedes it, instead of floating between that toolbar and the next block.
   return h_flex().id(MOD).size_full().items_center().justify_start()
-      .when(Boolean(this.project), (el) => el.child(control(t, frameRadius(), this.project, { height: 26 })));
+      .when(Boolean(this.project), (el) => el.child(control(t, this.project, { height: 26 })));
   }
 }
