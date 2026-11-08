@@ -4,12 +4,16 @@
 // script in a new terminal tab beside the shown one, and draws the "▾ script  ▶" control.
 import { div, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { readTextFile, exec, spaces, focused, run, shared, setShared, home, openOverlay, window } from "herdr";
+import { readTextFile, exec, spaces, focused, run, shared, setShared, home, openOverlay, closeOverlay, window } from "herdr";
 
 export const MOD = "run-scripts";
 const ICON = (name) => `mods/${MOD}/${name}.svg`;
 const STATE = "run-scripts";
 const UP = 8;
+
+// The picker's measured parts. The dialog height and the content it holds are computed from
+// these, so adding a row cannot clip the footer again.
+export const PICKER = { row: 30, caption: 25, search: 34, header: 34, footer: 34, maxList: 330, maxHeight: 560 };
 
 // ── finding the project ────────────────────────────────────────────────────────────────
 const parent = (dir) => dir.replace(/[\\/][^\\/]+[\\/]?$/, "") || "/";
@@ -63,16 +67,20 @@ export const commandFor = (pm, name) => (pm === "yarn" ? ["yarn", "run", name] :
 export function runScript(project, name, cx, where = "tab") {
   const argv = commandFor(project.pm, name);
   remember(project, name);
-  // A terminal closes when its program exits, so a pane running the script directly would
-  // vanish the moment a short script ends. Run it from a shell that stays, the way tab.new
-  // keeps the shell it starts an agent in; the output stays on screen, ready for the next
-  // command.
-  const one = (s) => `'${String(s).replace(/'/g, "'\\''")}'`;
+  // A terminal closes when its program exits, so a pane running the script directly would vanish
+  // the moment a short script ends. The pane runs the script from a shell that stays and hands
+  // over to an interactive login shell afterwards, the way tab.new keeps its shell. The trap
+  // matters: a shell running -c exits on Ctrl-C, which is how a dev server is stopped, and the
+  // pane would go with it. $SHELL is resolved on the machine the pane runs on, so a remote
+  // project gets that machine's shell and its PATH.
+  const one = (s) => "'" + String(s).replace(/'/g, "'\\''") + "'";
   const line = [...commandFor(project.pm, name).slice(0, -1), one(name)].join(" ");
-  const keep = window()?.platform === "windows"
+  const inner = "trap : INT; " + line + '; exec "$SHELL" -l -i';
+  const launcher = 'SHELL="${SHELL:-/bin/sh}"; export SHELL; exec "$SHELL" -l -i -c "$1"';
+  const splitArgv = !project.on && window()?.platform === "windows"
     ? ["powershell.exe", "-NoExit", "-Command", line]
-    : ["/bin/zsh", "-lic", `${line}; exec /bin/zsh -li`];
-  if (where === "split") { run("terminal.open", { place: "right", argv: keep, folder: project.root, name }); return; }
+    : ["/bin/sh", "-c", launcher, "sh", inner];
+  if (where === "split") { run("terminal.open", { place: "right", folder: project.root, name, argv: splitArgv }); return; }
   const f = focused(), space = spaces().find((s) => s.id === f?.space) ?? spaces().find((s) => s.active);
   if (!space) return;
   const before = new Set(space.tabs.map((t) => t.id)), shown = space.tabs.find((t) => t.active);
@@ -104,7 +112,7 @@ export function fuzzyScore(query, text) {
 
 /** The given scripts that match `query`, best first; everything, in order, for an empty query. */
 export function filterScripts(scripts, query) {
-  const q = String(query ?? "").trim();
+  const q = String(query ?? "").replace(/\s+/g, "");
   if (!q) return scripts;
   return scripts
     .map((s) => ({ s, score: fuzzyScore(q, s.name) }))
@@ -116,11 +124,28 @@ export function filterScripts(scripts, query) {
 // ── the control: [pm icon  script ▾ │ ▶] ───────────────────────────────────────────────
 const PM_COLOR = { npm: "ansi1", pnpm: "ansi3", yarn: "ansi4", bun: "foreground" };
 
+let pickerId = null;
+export const pickerOpen = () => Boolean(pickerId);
+/** The picker closed itself: forget its id so the next open is not treated as a toggle. */
+export const forgetPicker = () => { pickerId = null; };
+
 export function openMenu(project) {
-  const rows = recentScripts(project).length + project.scripts.length;
+  // The key and the ▾ button both land here; a second open closes the picker instead of
+  // stacking another one on top of it.
+  if (pickerId) { closeOverlay(pickerId); pickerId = null; return; }
+  const recent = recentScripts(project);
+  const total = new Set([...recent, ...project.scripts.map((s) => s.name)]).size;
+  const captions = (recent.length ? 1 : 0) + (project.scripts.some((s) => !recent.includes(s.name)) ? 1 : 0);
+  const list = Math.min(PICKER.maxList, total * PICKER.row + captions * PICKER.caption);
   // dialog, not popup: a popup lands at the pointer, so a key-opened picker could appear
   // anywhere on screen; a dialog is centered.
-  openOverlay({ mod: MOD, kind: "dialog", width: 420, height: Math.min(460, 96 + rows * 30 + (recentScripts(project).length ? 26 : 0)), props: { popup: { project } } });
+  pickerId = openOverlay({
+    mod: MOD,
+    kind: "dialog",
+    width: 420,
+    height: Math.min(PICKER.maxHeight, PICKER.header + PICKER.search + list + PICKER.footer),
+    props: { popup: { project } },
+  });
 }
 
 /** `stop` keeps a press on the control from reaching a window-drag bar under it. */

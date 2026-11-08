@@ -5,9 +5,9 @@
 A run control for JavaScript projects: `▾ script ▶`. It shows while the focused terminal's
 folder, or a folder up to 8 levels above it, has a `package.json` with scripts.
 
-- **▶** runs the chosen script in a new terminal tab, named after the script, opened in the
-  project folder and placed right after the tab you were on. The shell stays open when the
-  script ends.
+- **▶** runs the chosen script beside the focused pane, in a pane named after the script and
+  opened in the project folder. The pane keeps its shell after the script ends, and Ctrl-C
+  returns to that shell. (A row's own **▶** in the picker still opens a new tab.)
 - **▾** opens a list: the project name and its command at the top, **Recent** (your last 3
   runs), then **All scripts** with their commands. Click a row to choose it; each row also
   has **▶** (run in a new tab) and a split button (run beside the focused pane).
