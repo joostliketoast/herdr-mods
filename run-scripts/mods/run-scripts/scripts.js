@@ -118,7 +118,9 @@ const PM_COLOR = { npm: "ansi1", pnpm: "ansi3", yarn: "ansi4", bun: "foreground"
 
 export function openMenu(project) {
   const rows = recentScripts(project).length + project.scripts.length;
-  openOverlay({ mod: MOD, kind: "popup", width: 340, height: Math.min(460, 96 + rows * 30 + (recentScripts(project).length ? 26 : 0)), props: { popup: { project } } });
+  // dialog, not popup: a popup lands at the pointer, so a key-opened picker could appear
+  // anywhere on screen; a dialog is centered.
+  openOverlay({ mod: MOD, kind: "dialog", width: 340, height: Math.min(460, 96 + rows * 30 + (recentScripts(project).length ? 26 : 0)), props: { popup: { project } } });
 }
 
 /** `stop` keeps a press on the control from reaching a window-drag bar under it. */
@@ -127,7 +129,7 @@ export function control(t, R, project, { height = 28, stop } = {}) {
   const half = (id) => h_flex().id(id).h_full().gap(6).items_center().cursor_pointer().hover((st) => st.bg(t.hover))
     .when(Boolean(stop), (el) => el.on_mouse_down("left", stop));
   return h_flex().id("run-scripts").h(height).flex_none().items_center().rounded(R).border_1().border_color(t.border).bg(t.background).overflow_hidden().text_size(12.5)
-    .child(half("run-pick").pl(8).pr(6).max_w(200).tooltip(`${project.name} · choose a script`)
+    .child(half("run-pick").pl(8).pr(6).max_w(120).tooltip(`${project.name} · choose a script`)
       .on_click(() => openMenu(project))
       .child(svg(`icons/${project.pm}.svg`).size(13).flex_none().text_color(t[PM_COLOR[project.pm]] ?? t.foreground))
       .child(div().min_w(0).truncate().text_color(t.foreground).child(s.name))
