@@ -1,6 +1,6 @@
 // filetree: an IDE-style file tree for any Herdr layout. A port of claude-code-filetree
 // (MIT, Kurt Buhler): git status with line and file counts, a branch row, search across
-// unopened folders, date or size column, keyboard navigation, previews, and Claude's reads,
+// unopened folders, date or size column, keyboard navigation, previews, and the agent's reads,
 // writes and git actions shimmering in the tree (fed by mods/filetree/bridge.ts).
 // Layout-neutral: colors come from theme(), corners and header height from the shown
 // layout's pane frame, fonts from settings().
@@ -537,7 +537,7 @@ export default class FileTree extends View {
     return out;
   }
 
-  // Recent: what Claude read, wrote or committed here, newest first, one row per file.
+  // Recent: what the agent read, wrote or committed here, newest first, one row per file.
   recentRows(q) {
     const seen = new Set(), out = [];
     for (let i = this.history.length - 1; i >= 0; i--) {
@@ -561,7 +561,7 @@ export default class FileTree extends View {
     return false;
   }
 
-  // ── Claude activity, from the hook bridge ────────────────────────────────────────────
+  // ── agent activity, from the hook bridge ─────────────────────────────────────────────
   watchActivity(cx) {
     const dir = `${home()}/.local/state/herdr-filetree`;
     cx.spawn(async (cx) => {
@@ -1005,7 +1005,7 @@ export default class FileTree extends View {
 
     const q = this.query.trim();
     const note = this.error || (!this.root ? "No folder"
-      : this.view === "recent" ? (rows.length ? null : q ? "No matches" : "Files Claude reads and writes here show up in this list")
+      : this.view === "recent" ? (rows.length ? null : q ? "No matches" : "Files the agent reads and writes here show up in this list")
       : this.searching && !rows.length ? "Searching…" : this.hits ? (rows.length ? null : "No matches") : this.loading && !rows.length ? "Loading files…" : !rows.length ? "Empty folder" : null);
     return root
       .child(this.summary(t))
