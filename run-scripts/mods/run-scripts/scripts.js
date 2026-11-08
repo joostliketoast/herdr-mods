@@ -120,7 +120,7 @@ export function openMenu(project) {
   const rows = recentScripts(project).length + project.scripts.length;
   // dialog, not popup: a popup lands at the pointer, so a key-opened picker could appear
   // anywhere on screen; a dialog is centered.
-  openOverlay({ mod: MOD, kind: "dialog", width: 340, height: Math.min(460, 96 + rows * 30 + (recentScripts(project).length ? 26 : 0)), props: { popup: { project } } });
+  openOverlay({ mod: MOD, kind: "dialog", width: 420, height: Math.min(460, 96 + rows * 30 + (recentScripts(project).length ? 26 : 0)), props: { popup: { project } } });
 }
 
 /** `stop` keeps a press on the control from reaching a window-drag bar under it. */
